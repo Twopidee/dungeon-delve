@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Dungeon Delve
+GenericName=Dungeon Crawler
+Comment=A d20 fantasy dungeon crawler for the terminal
+Exec=/home/YOUR_NAME/dungeon-delve/launch.sh
+Icon=/home/YOUR_NAME/dungeon-delve/icon.svg
+Terminal=false
+Categories=Game;RolePlaying;
+Keywords=dnd;rpg;dungeon;d20;
