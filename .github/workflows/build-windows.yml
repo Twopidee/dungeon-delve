@@ -14,9 +14,9 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -34,14 +34,14 @@ jobs:
           printf '3\n' | ./dist/Dungeon-Delve.exe | tee out.txt
           grep -q "Farewell, adventurer." out.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Dungeon-Delve-windows
           path: dist/Dungeon-Delve.exe
 
       - name: Attach exe to the GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/Dungeon-Delve.exe
           generate_release_notes: true
