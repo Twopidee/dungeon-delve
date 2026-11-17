@@ -5,6 +5,7 @@ DUNGEON DELVE - a d20 fantasy dungeon crawler for your terminal.
     python3 dungeon_delve.py              play
     python3 dungeon_delve.py --seed 42    repeatable dungeon
     python3 dungeon_delve.py --no-color   plain text output
+    python3 dungeon_delve.py --fast       no pauses between combat rolls
 
 Type 'help' in game for commands.
 """
@@ -16,6 +17,7 @@ import re
 import shutil
 import sys
 import textwrap
+import time
 from collections import deque
 from contextlib import contextmanager
 
@@ -47,6 +49,7 @@ FINAL_FLOOR = 5
 MAX_LEVEL = 8
 XP_LEVELS = [0, 100, 300, 700, 1300, 2100, 3200, 4600]  # XP needed to reach level (index + 1)
 GRID_W, GRID_H = 7, 5
+COMBAT_DELAY = 1.5  # seconds between combat rolls; --fast turns it off
 
 # --------------------------------------------------------------------------
 # Output helpers
@@ -297,6 +300,13 @@ def pause():
     ask(dim("  [press Enter]"))
 
 
+def beat(scale=1.0):
+    """Short dramatic pause between combat rolls (skipped when output isn't a terminal)."""
+    if COMBAT_DELAY and sys.stdout.isatty():
+        sys.stdout.flush()
+        time.sleep(COMBAT_DELAY * scale)
+
+
 # --------------------------------------------------------------------------
 # Dice
 # --------------------------------------------------------------------------
@@ -312,6 +322,19 @@ def roll(expr, crit=False):
     n = int(m.group(1) or 1) * (2 if crit else 1)
     sides, bonus = int(m.group(2)), int(m.group(3) or 0)
     return sum(random.randint(1, sides) for _ in range(n)) + bonus
+
+
+def roll_shown(expr, crit=False):
+    """Like roll(), but also returns the dice shown, e.g. (11, '2d6+4 [3+4]+4 = 11')."""
+    m = DICE_RE.match(str(expr).replace(" ", ""))
+    if not m:
+        return int(expr), str(expr)
+    n = int(m.group(1) or 1) * (2 if crit else 1)
+    sides, bonus = int(m.group(2)), int(m.group(3) or 0)
+    dice = [random.randint(1, sides) for _ in range(n)]
+    total = sum(dice) + bonus
+    label = f"{n}d{sides}{fmt_mod(bonus) if bonus else ''}"
+    return total, f"{label} [{'+'.join(map(str, dice))}]{fmt_mod(bonus) if bonus else ''} = {total}"
 
 
 def d20(adv=False, dis=False, lucky=False):
@@ -966,7 +989,9 @@ def hero_attack(hero, target, monsters):
     crit_on = 19 if hero.cls == "Fighter" and hero.level >= 3 else 20
     sneak_used = False
     first = True
-    for _ in range(attacks):
+    for i in range(attacks):
+        if i:
+            beat()
         if target["hp"] <= 0:
             living = alive(monsters)
             if not living:
@@ -1316,6 +1341,7 @@ def monsters_turn(hero, monsters):
     for m in alive(monsters):
         if hero.hp <= 0:
             return
+        beat()
         if hero.aura:
             sg = roll("3d8")
             print(cyan(f"  Your spirit guardians slash {m['name']} for {sg} radiant damage."))
@@ -1330,8 +1356,10 @@ def monsters_turn(hero, monsters):
             m["turns"] = m.get("turns", 0) + 1
             if m["turns"] % 3 == 0:
                 label, dice, stat, dc, kind = m["breath"]
-                dmg = roll(dice)
+                dmg, dmg_txt = roll_shown(dice)
                 print(magenta(bold(f"  {m['name']} unleashes {label}!")))
+                beat(0.6)
+                print(f"  Damage roll: {dmg_txt}")
                 if hero.save(stat, dc):
                     dmg //= 2
                 taken = hero.take_damage(dmg, kind=kind)
@@ -1346,9 +1374,11 @@ def monsters_turn(hero, monsters):
             print(f"  {m['name']} attacks: {txt} - {dim('misses.')}")
             continue
         crit = r == 20
-        dmg = roll(m["dmg"], crit)
+        dmg, dmg_txt = roll_shown(m["dmg"], crit)
         tag = red(bold("CRITICAL HIT!")) if crit else red("hits!")
         print(f"  {m['name']} attacks: {txt} - {tag}")
+        beat(0.6)
+        print(f"  {m['name']} rolls damage: {dmg_txt}")
         if dodge:
             dodge = False
             dmg //= 2
@@ -1369,7 +1399,8 @@ def monsters_turn(hero, monsters):
         sp = m.get("special")
         if hero.hp > 0 and sp == "poison":
             print("  Venom burns in your veins...")
-            extra = roll("2d8")
+            extra, extra_txt = roll_shown("2d8")
+            print(f"  Poison roll: {extra_txt}")
             if hero.save("CON", 11):
                 extra //= 2
             hero.take_damage(extra)
@@ -1408,6 +1439,7 @@ def combat(game, monsters, can_flee=True):
                     return "fled"
             else:
                 print()
+                beat(0.5)
                 monsters_turn(hero, monsters)
                 if hero.hp <= 0:
                     end_combat(hero)
@@ -2080,10 +2112,12 @@ INTRO = ("Beneath the ruined keep of Ashenmoor, something old has woken. The dea
 
 
 def main():
-    global USE_COLOR
+    global USE_COLOR, COMBAT_DELAY
     args = sys.argv[1:]
     if "--no-color" in args:
         USE_COLOR = False
+    if "--fast" in args:
+        COMBAT_DELAY = 0
     if "--seed" in args:
         random.seed(int(args[args.index("--seed") + 1]))
 

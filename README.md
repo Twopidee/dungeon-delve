@@ -244,6 +244,7 @@ v1.1.0`) and GitHub Actions builds the exe and attaches it to the release.
 python3 dungeon_delve.py              play
 python3 dungeon_delve.py --seed 42    the same dungeon every time (handy for testing)
 python3 dungeon_delve.py --no-color   plain text, no colors
+python3 dungeon_delve.py --fast       skip the pauses between combat rolls
 ```
 
 Setting the `NO_COLOR` environment variable also turns colors off.
